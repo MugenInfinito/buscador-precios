@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Buscador de Precios Logi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: barra de búsqueda fija arriba, lista de resultados que se expande en ficha al tocar; panel de carga plegable */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --fg:#141a24; --muted:#5d6878; --line:#dde2ea;
+  --accent:#1d4ed8; --accent-soft:#e3eafc;
+  --ok:#137a4b; --ok-soft:#dff3e8; --warn:#9a5b00; --warn-soft:#fbefd9; --bad:#b42318; --bad-soft:#fde4e1;
+  --gold:#8a5a00; --gold-soft:#fff1cc;
+  --f-display:"Archivo",system-ui,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f131a; --surface:#171d27; --fg:#e8ecf3; --muted:#97a2b4; --line:#283142;
+  --accent:#7aa2ff; --accent-soft:#1d2a47;
+  --ok:#5fd29a; --ok-soft:#14301f; --warn:#f0b75a; --warn-soft:#33270f; --bad:#ff8a7e; --bad-soft:#3a1814;
+  --gold:#ffd27a; --gold-soft:#3a2c0c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f131a; --surface:#171d27; --fg:#e8ecf3; --muted:#97a2b4; --line:#283142;
+  --accent:#7aa2ff; --accent-soft:#1d2a47;
+  --ok:#5fd29a; --ok-soft:#14301f; --warn:#f0b75a; --warn-soft:#33270f; --bad:#ff8a7e; --bad-soft:#3a1814;
+  --gold:#ffd27a; --gold-soft:#3a2c0c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-display);font-size:15px;line-height:1.45}
+.wrap{max-width:820px;margin:0 auto;padding-inline:16px;padding-block:0 48px}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:16px 10px;display:grid;gap:10px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.01em}
+h1 small{font-weight:500;color:var(--muted);font-size:13px;margin-left:6px}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--fg);font:600 13px var(--f-display);padding:8px 12px;border-radius:10px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.btn:focus-visible,.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.search{position:relative}
+.search input{width:100%;font:500 17px var(--f-display);color:var(--fg);background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:13px 44px 13px 42px;outline:none}
+.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--muted);font-size:20px;width:32px;height:32px;border-radius:8px;cursor:pointer}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--fg);font:600 13px var(--f-display);padding:6px 11px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.count{color:var(--muted);font-size:13px;margin:0}
+.upload{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:12px;margin-top:4px}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:20px 14px;text-align:center;color:var(--muted);cursor:pointer;display:grid;gap:6px;justify-items:center}
+.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.drop strong{color:var(--fg)}
+.status{font-size:13px;display:grid;gap:4px}
+.status .msg{padding:8px 10px;border-radius:8px}
+.msg.ok{background:var(--ok-soft);color:var(--ok)}.msg.err{background:var(--bad-soft);color:var(--bad)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.list{display:grid;gap:8px;margin-top:6px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:12px 14px;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
+.row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.name{font-weight:600;min-width:0}
+.meta{grid-column:1;display:flex;gap:6px 8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.sku{font-family:var(--f-mono);font-size:12px}
+.price{grid-row:1/3;grid-column:2;text-align:right;font-variant-numeric:tabular-nums}
+.price b{display:block;font-size:17px;font-weight:700}
+.price s{font-size:12px;color:var(--muted)}
+.pill{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.p-ok{background:var(--ok-soft);color:var(--ok)}.p-warn{background:var(--warn-soft);color:var(--warn)}.p-bad{background:var(--bad-soft);color:var(--bad)}.p-acc{background:var(--accent-soft);color:var(--accent)}
+.p-inc{background:var(--gold-soft);color:var(--gold)}
+mark{background:var(--accent-soft);color:var(--accent);border-radius:3px;padding:0 1px}
+.detail{border-top:1px solid var(--line);padding:14px;display:grid;gap:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.kv{display:grid;gap:2px}
+.kv span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.kv strong{font-variant-numeric:tabular-nums;font-size:16px}
+.kv.hl strong{color:var(--accent);font-size:20px}
+.kv.inc strong{color:var(--gold)}
+h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+th,td{padding:7px 6px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.tw{overflow-x:auto}
+.up{color:var(--bad)}.down{color:var(--ok)}
+.rel{display:flex;flex-wrap:wrap;gap:6px}
+.rel button{border:1px solid var(--line);background:var(--bg);color:var(--fg);font:500 13px var(--f-display);padding:6px 10px;border-radius:8px;cursor:pointer;text-align:left}
+.rel button:hover{border-color:var(--accent)}
+.rel button em{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums;margin-left:6px}
+.combo{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.combo:last-child{border-bottom:0}
+.combo .n{font-weight:600;font-size:14px;min-width:0}
+.combo .v{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.combo .s{font-size:12px;color:var(--muted)}
+.copy{border:0;background:none;color:var(--accent);font:600 12px var(--f-display);cursor:pointer;padding:0}
+.empty{padding:32px 8px;text-align:center;color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+</style>
+<style>body{margin:0;font-size:15px}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+<header>
+  <div class="top">
+    <h1>Buscador de precios <small id="sub"></small></h1>
+    <button class="btn" id="toggleUp" aria-expanded="false" aria-controls="up">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>Cargar lista nueva</button>
+  </div>
+  <div class="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Busca por SKU o nombre (ej. G502, 910-005469)" autocomplete="off">
+    <button class="clear" id="clr" aria-label="Borrar búsqueda" hidden>×</button>
+  </div>
+  <div class="chips" id="chips">
+    <button class="chip" data-f="all" aria-pressed="true">Todo</button>
+    <button class="chip" data-f="inc" aria-pressed="false">Con incentivo</button>
+    <button class="chip" data-f="cur" aria-pressed="false" id="chipCur">Productos</button>
+    <button class="chip" data-f="combo" aria-pressed="false">Combos</button>
+    <button class="chip" data-f="old" aria-pressed="false" id="chipOld">Solo lista anterior</button>
+  </div>
+  <p class="count" id="count"></p>
+</header>
+
+<section class="upload" id="up" hidden>
+  <label class="drop" id="drop" for="file">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 12v6M9 15l3-3 3 3"/></svg>
+    <strong>Toca para elegir el Excel o arrástralo aquí</strong>
+    <span>.xlsx, .xls o .csv con columnas SKU, DESCRIPCIÓN, PVP, SOFA, OBSEQUIO, INCENTIVO</span>
+  </label>
+  <input type="file" id="file" accept=".xlsx,.xls,.xlsm,.csv" hidden>
+  <div class="status" id="status"></div>
+  <p class="note">La hoja con el año más reciente se toma como lista actual y la anterior como comparativo. La lista cargada queda guardada en este navegador; en otro equipo o celular hay que cargarla de nuevo.</p>
+  <div class="actions"><button class="btn" id="reset">Volver a la lista original</button></div>
+</section>
+
+<div class="list" id="list"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const SEED = {"fileName": "Listado de Precios.xlsx", "loadedAt": null, "cur": {"label": "2026", "rows": [{"sku": "940-000117", "name": "Control Inalámbrico F710", "inv": 25, "pvp": 189900, "desc": 11394, "sofa": 169900, "obsequio": "ESFERO", "incentivo": 5000}, {"sku": "940-000110", "name": "Control USB F310", "inv": 44, "pvp": 99900, "desc": 5994, "sofa": 89900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "981-001017", "name": "Diadema Gamer G335 BLANCO", "inv": 95, "pvp": 209900, "desc": 12594, "sofa": 184900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "981-001023", "name": "Diadema Gamer G335 MENTA", "inv": 58, "pvp": 209900, "desc": 12594, "sofa": 184900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "981-000977", "name": "Diadema Gamer G335 NEGRO", "inv": 271, "pvp": 219900, "desc": 13194, "sofa": 184900, "obsequio": "ESFERO", "incentivo": 10000}, {"sku": "910-005792", "name": "Mouse G203 AZUL", "inv": 23, "pvp": 104900, "desc": 6294, "sofa": 84900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "910-005791", "name": "Mouse G203 BLANCO", "inv": 31, "pvp": 104900, "desc": 6294, "sofa": 84900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "910-005851", "name": "Mouse G203 LILA", "inv": 33, "pvp": 104900, "desc": 6294, "sofa": 84900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "910-005790", "name": "Mouse G203 NEGRO", "inv": 159, "pvp": 104900, "desc": 6294, "sofa": 84900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "910-006012", "name": "Mouse G305 AZUL", "inv": 30, "pvp": 179900, "desc": 10794, "sofa": 149900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "910-005289", "name": "Mouse G305 BLANCO", "inv": 74, "pvp": 179900, "desc": 10794, "sofa": 149900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "910-006020", "name": "Mouse G305 LILA", "inv": 22, "pvp": 179900, "desc": 10794, "sofa": 149900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "910-006376", "name": "Mouse G305 MENTA", "inv": 24, "pvp": 179900, "desc": 10794, "sofa": 149900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "910-005281", "name": "Mouse G305 NEGRO", "inv": 180, "pvp": 179900, "desc": 10794, "sofa": 149900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "943-000783", "name": "Pad Mouse G240", "inv": 100, "pvp": 54900, "desc": 3294, "sofa": 39900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "943-000790", "name": "Pad Mouse G440", "inv": 94, "pvp": 69900, "desc": 4194, "sofa": 64900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "943-000797", "name": "Pad Mouse G640", "inv": 39, "pvp": 129900, "desc": 7794, "sofa": 99900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "943-001334", "name": "Pad Mouse G640SE EDICION ESPECIAL", "inv": 8, "pvp": "CIERRE", "desc": "#VALUE!", "sofa": null, "obsequio": "ESFERO", "incentivo": null}, {"sku": "943-000804", "name": "Pad Mouse G740 L", "inv": 20, "pvp": 129900, "desc": 7794, "sofa": 119900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "943-000776", "name": "Pad Mouse G840 NEGRO XL", "inv": 37, "pvp": 199900, "desc": 11994, "sofa": 159900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "943-001623", "name": "Reposamuñecas G512 X Palm", "inv": 32, "pvp": 199900, "desc": 11994, "sofa": 179900, "obsequio": "ESFERO", "incentivo": null}, {"sku": "984-001834", "name": "Ultimate Ears Wonderboom 3 LAVANDA", "inv": 280, "pvp": 249900, "desc": 14994, "sofa": 189900, "obsequio": "ESFERO", "incentivo": 8000}, {"sku": "939-001992", "name": "Diadema Astro A30, BLANCO XBOX", "inv": 2, "pvp": 1199900, "desc": 71994, "sofa": 999900, "obsequio": "GORRA", "incentivo": 5000}, {"sku": "939-002229", "name": "Diadema Astro A50 GEN 5 BLANCO", "inv": 2, "pvp": 1599900, "desc": 95994, "sofa": 1399900, "obsequio": "GORRA", "incentivo": null}, {"sku": "939-002217", "name": "Diadema Astro A50 GEN 5 NEGRO", "inv": 7, "pvp": 1599900, "desc": 95994, "sofa": 1399900, "obsequio": "GORRA", "incentivo": null}, {"sku": "939-002132", "name": "Diadema Astro A50X BLANCO", "inv": 8, "pvp": 1799900, "desc": 107994, "sofa": 1689900, "obsequio": "GORRA", "incentivo": 8000}, {"sku": "939-002126", "name": "Diadema Astro A50X NEGRO", "inv": 16, "pvp": 1799900, "desc": 107994, "sofa": 1689900, "obsequio": "GORRA", "incentivo": 8000}, {"sku": "981-001268", "name": "Diadema Gamer Inalámbrica G Pro X 2 BLANCO", "inv": 7, "pvp": 1249900, "desc": 74994, "sofa": 1029900, "obsequio": "GORRA", "incentivo": null}, {"sku": "981-001262", "name": "Diadema Gamer Inalámbrica G Pro X 2 NEGRO", "inv": 19, "pvp": 1199900, "desc": 71994, "sofa": 1029900, "obsequio": "GORRA", "incentivo": null}, {"sku": "988-000514", "name": "Micrófono Blue Yeticaster", "inv": 5, "pvp": 1179900, "desc": 70794, "sofa": 899900, "obsequio": "GORRA", "incentivo": 10000}, {"sku": "941-000242", "name": "Palanca Cambios Secuencial RG Shifter", "inv": 10, "pvp": 849900, "desc": 50994, "sofa": 749900, "obsequio": "GORRA", "incentivo": null}, {"sku": "980-001300", "name": "Parlantes G560 LIGHTSYNC", "inv": 12, "pvp": 1099900, "desc": 65994, "sofa": 999900, "obsequio": "GORRA", "incentivo": 10000}, {"sku": "941-000309", "name": "Pedales Rs Pedals", "inv": 9, "pvp": 859900, "desc": 51594, "sofa": 799900, "obsequio": "GORRA", "incentivo": null}, {"sku": "920-012143", "name": "Teclado Inalámbrico G PRO X TKL BLANCO", "inv": 4, "pvp": 949900, "desc": 56994, "sofa": 889900, "obsequio": "GORRA", "incentivo": null}, {"sku": "920-012127", "name": "Teclado Inalámbrico G PRO X TKL NEGRO", "inv": 6, "pvp": 949900, "desc": 56994, "sofa": 889900, "obsequio": "GORRA", "incentivo": null}, {"sku": "920-009660", "name": "Teclado Inalámbrico G915 TKL BLANCO", "inv": 3, "pvp": 899900, "desc": 53994, "sofa": 799900, "obsequio": "GORRA", "incentivo": null}, {"sku": "920-012423", "name": "Teclado Inalámbrico Mecánico G515 TKL NEGRO", "inv": 5, "pvp": 799900, "desc": 47994, "sofa": 699900, "obsequio": "GORRA", "incentivo": null}, {"sku": "920-012670", "name": "Teclado Inalámbrico Mecánico G915 X NEGRO", "inv": 12, "pvp": 999900, "desc": 59994, "sofa": 959900, "obsequio": "GORRA", "incentivo": null}, {"sku": "920-012732", "name": "Teclado Inalámbrico Mecánico G915 X TKL BLANCO", "inv": 5, "pvp": 989900, "desc": 59394, "sofa": 929900, "obsequio": "GORRA", "incentivo": null}, {"sku": "920-011921", "name": "Teclado Inalámbrico Mecánico PRO X 60 Blanco", "inv": 2, "pvp": 919900, "desc": 55194, "sofa": 869900, "obsequio": "GORRA", "incentivo": 10000}, {"sku": "920-011902", "name": "Teclado Inalámbrico Mecánico PRO X 60 Negro", "inv": 4, "pvp": 919900, "desc": 55194, "sofa": 869900, "obsequio": "GORRA", "incentivo": null}, {"sku": "920-013131", "name": "Teclado Inalámbrico Mecánico PRO X TKL RAPID NEGRO", "inv": 6, "pvp": 819900, "desc": 49194, "sofa": 769900, "obsequio": "GORRA", "incentivo": null}, {"sku": "941-000111", "name": "Volante G29 PS4 / PC", "inv": 52, "pvp": 1129900, "desc": 67794, "sofa": 999900, "obsequio": "GORRA", "incentivo": null}, {"sku": "991-000529", "name": "Volante G29 SE Driving Force", "inv": 52, "pvp": 1399900, "desc": 83994, "sofa": 1199900, "obsequio": "GORRA", "incentivo": null}, {"sku": "941-000122", "name": "Volante G920 Xbox / Pc", "inv": 90, "pvp": 1129900, "desc": 67794, "sofa": 999900, "obsequio": "GORRA", "incentivo": null}, {"sku": "941-000147", "name": "Volante G923 PS4 y PS5 / PC", "inv": 91, "pvp": 1269900, "desc": 76194, "sofa": 1149900, "obsequio": "GORRA", "incentivo": null}, {"sku": "941-000156", "name": "Volante G923 Xbox X|s One / Pc", "inv": 65, "pvp": 1269900, "desc": 76194, "sofa": 1149900, "obsequio": "GORRA", "incentivo": null}, {"sku": "941-000265", "name": "Volante RS50", "inv": 27, "pvp": 3199900, "desc": 191994, "sofa": 2799900, "obsequio": "GORRA", "incentivo": null}, {"sku": "939-002050", "name": "Diadema Astro A10 GEN 2 BLANCO", "inv": 3, "pvp": 359900, "desc": 21594, "sofa": 299900, "obsequio": "LLAVERO", "incentivo": 5000}, {"sku": "939-002069", "name": "Diadema Astro A10 GEN 2 GRIS", "inv": 14, "pvp": 359900, "desc": 21594, "sofa": 299900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "939-002076", "name": "Diadema Astro A10 GEN 2 LILA", "inv": 4, "pvp": 359900, "desc": 21594, "sofa": 299900, "obsequio": "LLAVERO", "incentivo": 5000}, {"sku": "939-002083", "name": "Diadema Astro A10 GEN 2 MENTA", "inv": 1, "pvp": 359900, "desc": 21594, "sofa": 299900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "939-002045", "name": "Diadema Astro A10 GEN 2 NEGRO", "inv": 3, "pvp": 359900, "desc": 21594, "sofa": 299900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "939-002055", "name": "Diadema Astro A10 GEN 2 NEGRO", "inv": 8, "pvp": 359900, "desc": 21594, "sofa": 299900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "981-000817", "name": "Diadema Gamer G PRO X", "inv": 17, "pvp": 579900, "desc": 34794, "sofa": 539900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "981-000742", "name": "Diadema Gamer Inalámbrica G935 LIGHTSYNC", "inv": 4, "pvp": 719900, "desc": 43194, "sofa": 679900, "obsequio": "LLAVERO", "incentivo": 10000}, {"sku": "981-001568", "name": "Diadema Inalambrica G321 BLANCO", "inv": 100, "pvp": 279900, "desc": 16794, "sofa": 229900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "981-001562", "name": "Diadema Inalambrica G321 NEGRO", "inv": 181, "pvp": 279900, "desc": 16794, "sofa": 229900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "988-000070", "name": "Micrófono Blue Snowball Ice - Blanco", "inv": 16, "pvp": 239900, "desc": 14394, "sofa": 219900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "988-000510", "name": "Micrófono Blue Snowball Ice - Negro", "inv": 76, "pvp": 239900, "desc": 14394, "sofa": 219900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "988-000504", "name": "Micrófono Blue Yeti BLACKOUT", "inv": 57, "pvp": 499900, "desc": 29994, "sofa": 459900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "988-000089", "name": "Micrófono Blue Yeti Nano AZUL", "inv": 2, "pvp": 479900, "desc": 28794, "sofa": 429900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "988-000506", "name": "Micrófono Blue Yeti SILVER", "inv": 21, "pvp": 499900, "desc": 29994, "sofa": 459900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "988-000507", "name": "Micrófono Blue Yeti X NEGRO", "inv": 9, "pvp": 699900, "desc": 41994, "sofa": 629900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "988-000568", "name": "Microfono Logitech Yeti GX Negro", "inv": 24, "pvp": 579900, "desc": 34794, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "988-000550", "name": "Microfono Logitech Yeti ORB Negro", "inv": 52, "pvp": 289900, "desc": 17394, "sofa": 229900, "obsequio": "LLAVERO", "incentivo": 5000}, {"sku": "910-007738", "name": "Mouse G305 X LIGHTSPEED NEGRO", "inv": 59, "pvp": 299900, "desc": 17994, "sofa": 289900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-005469", "name": "Mouse G502 HERO", "inv": 138, "pvp": 249900, "desc": 14994, "sofa": 219900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-006144", "name": "Mouse G502 X HERO BLANCO", "inv": 3, "pvp": 349900, "desc": 20994, "sofa": 329900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-006136", "name": "Mouse G502 X HERO NEGRO", "inv": 15, "pvp": 349900, "desc": 20994, "sofa": 329900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-005638", "name": "Mouse G703 LightSpeed", "inv": 10, "pvp": 319900, "desc": 19194, "sofa": 299900, "obsequio": "LLAVERO", "incentivo": 5000}, {"sku": "910-005670", "name": "Mouse G903 Lightspeed", "inv": 9, "pvp": 549900, "desc": 32994, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-007775", "name": "Mouse Gamer Inalambrico PRO X2 SuperStrike", "inv": 90, "pvp": 699900, "desc": 41994, "sofa": 649900, "obsequio": "LLAVERO", "incentivo": 10000}, {"sku": "910-007290", "name": "Mouse Gamer PRO 2 LIGHTSPEED BLANCO", "inv": 12, "pvp": 529900, "desc": 31794, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": 8000}, {"sku": "910-007246", "name": "Mouse Gamer PRO 2 LIGHTSPEED NEGRO", "inv": 22, "pvp": 529900, "desc": 31794, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": 8000}, {"sku": "910-007291", "name": "Mouse Gamer PRO 2 LIGHTSPEED ROSA", "inv": 9, "pvp": 529900, "desc": 31794, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": 8000}, {"sku": "910-006636", "name": "Mouse Inalámbrico G Pro X Superlight 2 BLANCO", "inv": 16, "pvp": 499900, "desc": 29994, "sofa": 459900, "obsequio": "LLAVERO", "incentivo": 10000}, {"sku": "910-007537", "name": "Mouse Inalámbrico G Pro X Superlight 2 C BLANCO", "inv": 9, "pvp": 669900, "desc": 40194, "sofa": 589900, "obsequio": "LLAVERO", "incentivo": 10000}, {"sku": "910-007530", "name": "Mouse Inalámbrico G Pro X Superlight 2 C NEGRO", "inv": 15, "pvp": 669900, "desc": 40194, "sofa": 589900, "obsequio": "LLAVERO", "incentivo": 10000}, {"sku": "910-007544", "name": "Mouse Inalámbrico G Pro X Superlight 2 C ROSA", "inv": 8, "pvp": 669900, "desc": 40194, "sofa": 589900, "obsequio": "LLAVERO", "incentivo": 10000}, {"sku": "910-006628", "name": "Mouse Inalámbrico G Pro X Superlight 2 NEGRO", "inv": 32, "pvp": 499900, "desc": 29994, "sofa": 459900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-006795", "name": "Mouse Inalámbrico G Pro X Superlight 2 PINK", "inv": 11, "pvp": 499900, "desc": 29994, "sofa": 459900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-007656", "name": "Mouse Inalámbrico G Pro X Superlight 2 SE BLANCO", "inv": 14, "pvp": 589900, "desc": 35394, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-007648", "name": "Mouse Inalámbrico G Pro X Superlight 2 SE NEGRO", "inv": 21, "pvp": 589900, "desc": 35394, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-005940", "name": "Mouse Inalámbrico G Pro X Superlight BLANCO", "inv": 8, "pvp": 549900, "desc": 32994, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-005954", "name": "Mouse Inalámbrico G Pro X Superlight MAGENTA", "inv": 1, "pvp": 549900, "desc": 32994, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-005878", "name": "Mouse Inalámbrico G Pro X Superlight NEGRO", "inv": 36, "pvp": 549900, "desc": 32994, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-006783", "name": "Mouse Inalámbrico G Pro X Superlight ROJO", "inv": 1, "pvp": 549900, "desc": 32994, "sofa": 499900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-007205", "name": "Mouse Inalámbrico G309 BLANCO", "inv": 21, "pvp": 299900, "desc": 17994, "sofa": 269900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-007197", "name": "Mouse Inalámbrico G309 NEGRO", "inv": 21, "pvp": 299900, "desc": 17994, "sofa": 269900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-005565", "name": "Mouse Inalámbrico G502 LIGHTSPEED", "inv": 11, "pvp": 489900, "desc": 29394, "sofa": 459900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-006187", "name": "Mouse Inalámbrico G502 X LIGHTSPEED BLANCO", "inv": 4, "pvp": 599900, "desc": 35994, "sofa": 549900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-006178", "name": "Mouse Inalámbrico G502 X LIGHTSPEED NEGRO", "inv": 18, "pvp": 599900, "desc": 35994, "sofa": 549900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-006169", "name": "Mouse Inalámbrico G502 X PLUS BLANCO", "inv": 9, "pvp": 699900, "desc": 41994, "sofa": 649900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "910-006160", "name": "Mouse Inalámbrico G502 X PLUS NEGRO", "inv": 13, "pvp": 699900, "desc": 41994, "sofa": 649900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "947-000002", "name": "Pad Mouse Powerplay 2", "inv": 5, "pvp": 599900, "desc": 35994, "sofa": 549900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "941-000119", "name": "Palanca Driving Force Shifter", "inv": 293, "pvp": 229900, "desc": 13794, "sofa": 199900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "941-000321", "name": "Palanca H-Shifter", "inv": 18, "pvp": 759900, "desc": 45594, "sofa": 719900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-008084", "name": "Teclado Gamer Logitech G213", "inv": 59, "pvp": 299900, "desc": 17994, "sofa": 209900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-012535", "name": "Teclado Inalámbrico Mecánico G515 TKL BLANCO", "inv": 10, "pvp": 799900, "desc": 47994, "sofa": 699900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-012869", "name": "Teclado Inalámbrico Mecánico G515 X TKL BLANCO", "inv": 11, "pvp": 499900, "desc": 29994, "sofa": 419900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-012868", "name": "Teclado Inalámbrico Mecánico G515 X TKL NEGRO", "inv": 17, "pvp": 499900, "desc": 29994, "sofa": 419900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-014226", "name": "Teclado Mecanico G316 X 98 BLANCO", "inv": 16, "pvp": 429900, "desc": 25794, "sofa": 399900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-014183", "name": "Teclado Mecanico G316 X 98 NEGRO", "inv": 47, "pvp": 429900, "desc": 25794, "sofa": 399900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-010442", "name": "Teclado Mecánico G413 SE TKL", "inv": 4, "pvp": 359900, "desc": 21594, "sofa": 329900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-013948", "name": "Teclado Mecánico G512 X 75 BLANCO", "inv": 4, "pvp": 789900, "desc": 47394, "sofa": 739900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-013926", "name": "Teclado Mecánico G512 X 75 NEGRO", "inv": 12, "pvp": 789900, "desc": 47394, "sofa": 739900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "920-009388", "name": "Teclado Mecánico Logitech G PRO", "inv": 28, "pvp": 519900, "desc": 31194, "sofa": 489900, "obsequio": "LLAVERO", "incentivo": null}, {"sku": "939-002252", "name": "Diadema Astro A20 X BLANCO", "inv": 5, "pvp": 799900, "desc": 47994, "sofa": 749900, "obsequio": "SOPORTE", "incentivo": null}, {"sku": "939-002246", "name": "Diadema Astro A20 X NEGRO", "inv": 15, "pvp": 799900, "desc": 47994, "sofa": 749900, "obsequio": "SOPORTE", "incentivo": 15000}, {"sku": "981-001530", "name": "Diadema Gamer Inalámbrica G325 BLANCO", "inv": 49, "pvp": 399900, "desc": 23994, "sofa": 359900, "obsequio": "SOPORTE", "incentivo": null}, {"sku": "981-001537", "name": "Diadema Gamer Inalámbrica G325 LILA", "inv": 44, "pvp": 399900, "desc": 23994, "sofa": 359900, "obsequio": "SOPORTE", "incentivo": null}, {"sku": "981-001523", "name": "Diadema Gamer Inalámbrica G325 NEGRO", "inv": 80, "pvp": 399900, "desc": 23994, "sofa": 359900, "obsequio": "SOPORTE", "incentivo": null}, {"sku": "981-001549", "name": "Diadema Gamer Inalámbrica G522 BLANCO", "inv": 9, "pvp": 819900, "desc": 49194, "sofa": 749900, "obsequio": "SOPORTE", "incentivo": null}, {"sku": "981-001543", "name": "Diadema Gamer Inalámbrica G522 NEGRO", "inv": 3, "pvp": 819900, "desc": 49194, "sofa": 749900, "obsequio": "SOPORTE", "incentivo": null}, {"sku": "981-000971", "name": "Diadema Gamer Inalámbrica G535 NEGRO", "inv": 30, "pvp": 489900, "desc": 29394, "sofa": 419900, "obsequio": "SOPORTE", "incentivo": null}, {"sku": "939-002218", "name": "Diadema Gamer Inalámbrica G535 NEGRO/AZUL", "inv": 13, "pvp": 489900, "desc": 29394, "sofa": 449900, "obsequio": "SOPORTE", "incentivo": 10000}]}, "prev": {"label": "2025", "rows": [{"sku": "943-000435", "name": "Adaptador De Carreras Racing", "pvp": 239900, "tachado": null, "sofa": 199900}, {"sku": "980-000467", "name": "Altavoces 5.1 Logitech Z906", "pvp": 1899900, "tachado": null, "sofa": 1599900}, {"sku": "940-000117", "name": "Control Inalámbrico F710", "pvp": 219900, "tachado": null, "sofa": 169900}, {"sku": "940-000110", "name": "Control USB F310", "pvp": 119900, "tachado": 99900, "sofa": 89900}, {"sku": "939-002050", "name": "Diadema Astro A10 GEN 2 BLANCO", "pvp": 359900, "tachado": null, "sofa": 299900}, {"sku": "939-002076", "name": "Diadema Astro A10 GEN 2 LILA", "pvp": 359900, "tachado": null, "sofa": 299900}, {"sku": "939-002083", "name": "Diadema Astro A10 GEN 2 MENTA", "pvp": 359900, "tachado": null, "sofa": 299900}, {"sku": "939-002045", "name": "Diadema Astro A10 GEN 2 NEGRO", "pvp": 359900, "tachado": null, "sofa": 299900}, {"sku": "939-002055", "name": "Diadema Astro A10 GEN 2 NEGRO", "pvp": 359900, "tachado": null, "sofa": 299900}, {"sku": "939-001845", "name": "Diadema Astro A10 PS4 Blanco/Azul", "pvp": 249900, "tachado": null, "sofa": 199900}, {"sku": "939-001509", "name": "Diadema Astro A10 PS4 Negro/Azul", "pvp": 249900, "tachado": null, "sofa": 199900}, {"sku": "939-001876", "name": "Diadema Astro A20", "pvp": 599900, "tachado": null, "sofa": 499900}, {"sku": "939-001992", "name": "Diadema Astro A30, BLANCO XBOX", "pvp": 1249900, "tachado": null, "sofa": 1089900}, {"sku": "939-002229", "name": "Diadema Astro A50 GEN 5 BLANCO", "pvp": 1599900, "tachado": 1549900, "sofa": 1499900}, {"sku": "939-002217", "name": "Diadema Astro A50 GEN 5 NEGRO", "pvp": 1599900, "tachado": 1549900, "sofa": 1499900}, {"sku": "939-001673", "name": "Diadema Astro A50, PS4", "pvp": 1199900, "tachado": null, "sofa": 999900}, {"sku": "939-001680", "name": "Diadema Astro A50, Xbox", "pvp": 1199900, "tachado": null, "sofa": 999900}, {"sku": "939-002132", "name": "Diadema Astro A50X BLANCO", "pvp": 2049900, "tachado": 1949900, "sofa": 1889900}, {"sku": "939-002126", "name": "Diadema Astro A50X NEGRO", "pvp": 2049900, "tachado": 1949900, "sofa": 1889900}, {"sku": "981-000817", "name": "Diadema Gamer G PRO X", "pvp": 599900, "tachado": null, "sofa": 569900}, {"sku": "981-001017", "name": "Diadema Gamer G335 BLANCO", "pvp": 279900, "tachado": 239900, "sofa": 199900}, {"sku": "981-001023", "name": "Diadema Gamer G335 MENTA", "pvp": 279900, "tachado": 239900, "sofa": 199900}, {"sku": "981-000977", "name": "Diadema Gamer G335 NEGRO", "pvp": 279900, "tachado": 239900, "sofa": 199900}, {"sku": "981-000906", "name": "Diadema Gamer Inalambrica G PRO X", "pvp": 959900, "tachado": null, "sofa": 819900}, {"sku": "981-001268", "name": "Diadema Gamer Inalámbrica G Pro X 2 BLANCO", "pvp": 1369900, "tachado": 1199900, "sofa": 1089900}, {"sku": "981-001262", "name": "Diadema Gamer Inalámbrica G Pro X 2 NEGRO", "pvp": 1369900, "tachado": 1159900, "sofa": 1089900}, {"sku": "981-001105", "name": "Diadema Gamer Inalámbrica G PRO X League of Legends.", "pvp": 539900, "tachado": null, "sofa": 449900}, {"sku": "981-001061", "name": "Diadema Gamer Inalámbrica G435 AZUL", "pvp": 369900, "tachado": 319900, "sofa": 299900}, {"sku": "981-001073", "name": "Diadema Gamer Inalámbrica G435 BLANCO", "pvp": 369900, "tachado": 319900, "sofa": 299900}, {"sku": "981-001049", "name": "Diadema Gamer Inalámbrica G435 NEGRO", "pvp": 369900, "tachado": 319900, "sofa": 299900}, {"sku": "981-001543", "name": "Diadema Gamer Inalámbrica G522 NEGRO", "pvp": 879900, "tachado": 839900, "sofa": 819900}, {"sku": "981-000971", "name": "Diadema Gamer Inalámbrica G535 NEGRO", "pvp": 579900, "tachado": null, "sofa": 539900}, {"sku": "939-002218", "name": "Diadema Gamer Inalámbrica G535 NEGRO/AZUL", "pvp": 569900, "tachado": null, "sofa": 499900}, {"sku": "981-000748", "name": "Diadema Gamer Inalámbrica G635", "pvp": 579900, "tachado": null, "sofa": 499900}, {"sku": "981-000942", "name": "Diadema Gamer Inalámbrica G733 AZUL", "pvp": 749900, "tachado": null, "sofa": 699900}, {"sku": "981-000882", "name": "Diadema Gamer Inalámbrica G733 BLANCO", "pvp": 749900, "tachado": null, "sofa": 699900}, {"sku": "981-000989", "name": "Diadema Gamer Inalámbrica G733 KDA", "pvp": 779900, "tachado": null, "sofa": 659900}, {"sku": "981-000889", "name": "Diadema Gamer Inalámbrica G733 LILA", "pvp": 749900, "tachado": null, "sofa": 699900}, {"sku": "981-000863", "name": "Diadema Gamer Inalámbrica G733 NEGRO", "pvp": 749900, "tachado": null, "sofa": 699900}, {"sku": "981-001082", "name": "Diadema Gamer Inalámbrica G735 Aurora", "pvp": 899900, "tachado": null, "sofa": 849900}, {"sku": "981-000742", "name": "Diadema Gamer Inalámbrica G935 LIGHTSYNC", "pvp": 759900, "tachado": null, "sofa": 639900}, {"sku": "946-000031", "name": "Luz Led Litra Glow Negro", "pvp": 279900, "tachado": null, "sofa": 229900}, {"sku": "988-000070", "name": "Micrófono Blue Snowball Ice - Blanco", "pvp": 249900, "tachado": null, "sofa": 219900}, {"sku": "988-000510", "name": "Micrófono Blue Snowball Ice - Negro", "pvp": 249900, "tachado": null, "sofa": 219900}, {"sku": "988-000504", "name": "Micrófono Blue Yeti BLACKOUT", "pvp": 519900, "tachado": null, "sofa": 459900}, {"sku": "988-000089", "name": "Micrófono Blue Yeti Nano AZUL", "pvp": 479900, "tachado": null, "sofa": 429900}, {"sku": "988-000514", "name": "Micrófono Blue Yeticaster", "pvp": 1179900, "tachado": null, "sofa": 899900}, {"sku": "988-000568", "name": "Microfono Logitech Yeti GX Negro", "pvp": 769900, "tachado": 679900, "sofa": 619900}, {"sku": "988-000550", "name": "Microfono Logitech Yeti ORB Negro", "pvp": 349900, "tachado": null, "sofa": 299900}, {"sku": "910-005792", "name": "Mouse G203 AZUL", "pvp": 119900, "tachado": 114900, "sofa": 89900}, {"sku": "910-005791", "name": "Mouse G203 BLANCO", "pvp": 119900, "tachado": 114900, "sofa": 89900}, {"sku": "910-005851", "name": "Mouse G203 LILA", "pvp": 119900, "tachado": 114900, "sofa": 89900}, {"sku": "910-005790", "name": "Mouse G203 NEGRO", "pvp": 119900, "tachado": 114900, "sofa": 89900}, {"sku": "910-006012", "name": "Mouse G305 AZUL", "pvp": 199900, "tachado": null, "sofa": 159900}, {"sku": "910-005289", "name": "Mouse G305 BLANCO", "pvp": 199900, "tachado": null, "sofa": 159900}, {"sku": "910-006020", "name": "Mouse G305 LILA", "pvp": 199900, "tachado": null, "sofa": 159900}, {"sku": "910-006376", "name": "Mouse G305 MENTA", "pvp": 199900, "tachado": null, "sofa": 159900}, {"sku": "910-005281", "name": "Mouse G305 NEGRO", "pvp": 199900, "tachado": null, "sofa": 159900}, {"sku": "910-005469", "name": "Mouse G502 HERO", "pvp": 249900, "tachado": null, "sofa": 199900}, {"sku": "910-006144", "name": "Mouse G502 X HERO BLANCO", "pvp": 419900, "tachado": null, "sofa": 349900}, {"sku": "910-006136", "name": "Mouse G502 X HERO NEGRO", "pvp": 419900, "tachado": null, "sofa": 349900}, {"sku": "910-005638", "name": "Mouse G703 LightSpeed", "pvp": 419900, "tachado": null, "sofa": 339900}, {"sku": "910-005670", "name": "Mouse G903 Lightspeed", "pvp": 629900, "tachado": 599900, "sofa": 499900}, {"sku": "910-007290", "name": "Mouse Gamer PRO 2 LIGHTSPEED BLANCO", "pvp": 599900, "tachado": 579900, "sofa": 539900}, {"sku": "910-007246", "name": "Mouse Gamer PRO 2 LIGHTSPEED NEGRO", "pvp": 599900, "tachado": 579900, "sofa": 539900}, {"sku": "910-007291", "name": "Mouse Gamer PRO 2 LIGHTSPEED ROSA", "pvp": 599900, "tachado": 579900, "sofa": 539900}, {"sku": "910-006636", "name": "Mouse Inalámbrico G Pro X Superlight 2 BLANCO", "pvp": 699900, "tachado": null, "sofa": 579900}, {"sku": "910-006628", "name": "Mouse Inalámbrico G Pro X Superlight 2 NEGRO", "pvp": 699900, "tachado": null, "sofa": 579900}, {"sku": "910-006795", "name": "Mouse Inalámbrico G Pro X Superlight 2 PINK", "pvp": 699900, "tachado": null, "sofa": 579900}, {"sku": "910-006783", "name": "Mouse Inalámbrico G Pro X Superlight ROJO", "pvp": 669900, "tachado": null, "sofa": 499900}, {"sku": "910-007205", "name": "Mouse Inalámbrico G309 BLANCO", "pvp": 419900, "tachado": null, "sofa": 299900}, {"sku": "910-007197", "name": "Mouse Inalámbrico G309 NEGRO", "pvp": 419900, "tachado": null, "sofa": 299900}, {"sku": "910-006187", "name": "Mouse Inalámbrico G502 X LIGHTSPEED BLANCO", "pvp": 649900, "tachado": null, "sofa": 499900}, {"sku": "910-006178", "name": "Mouse Inalámbrico G502 X LIGHTSPEED NEGRO", "pvp": 649900, "tachado": null, "sofa": 499900}, {"sku": "910-006169", "name": "Mouse Inalámbrico G502 X PLUS BLANCO", "pvp": 799900, "tachado": 749900, "sofa": 619900}, {"sku": "910-006160", "name": "Mouse Inalámbrico G502 X PLUS NEGRO", "pvp": 799900, "tachado": 749900, "sofa": 619900}, {"sku": "910-006366", "name": "Mouse Inalámbrico G705 Aurora", "pvp": 379900, "tachado": null, "sofa": 299900}, {"sku": "910-005271", "name": "Mouse Inalámbrico Pro Wireless Hero NEGRO", "pvp": 469900, "tachado": null, "sofa": 419900}, {"sku": "956-000036", "name": "Pad Mouse Desk Mat Lavanda", "pvp": 94900, "tachado": null, "sofa": 89900}, {"sku": "956-000048", "name": "Pad Mouse Desk Mat Rosado", "pvp": 94900, "tachado": null, "sofa": 89900}, {"sku": "943-000783", "name": "Pad Mouse G240", "pvp": 49900, "tachado": null, "sofa": 39900}, {"sku": "943-000790", "name": "Pad Mouse G440", "pvp": 79900, "tachado": null, "sofa": 64900}, {"sku": "943-000797", "name": "Pad Mouse G640", "pvp": 119900, "tachado": null, "sofa": 99900}, {"sku": "943-001334", "name": "Pad Mouse G640SE EDICION ESPECIAL", "pvp": "OBSEQUIO", "tachado": null, "sofa": null}, {"sku": "943-000804", "name": "Pad Mouse G740 L", "pvp": 149900, "tachado": 129900, "sofa": 119900}, {"sku": "943-000456", "name": "Pad Mouse G840 KDA", "pvp": 199900, "tachado": null, "sofa": 159900}, {"sku": "943-000776", "name": "Pad Mouse G840 NEGRO XL", "pvp": 189900, "tachado": null, "sofa": 169900}, {"sku": "943-000109", "name": "Pad Mouse Powerplay", "pvp": 769900, "tachado": null, "sofa": 699900}, {"sku": "947-000002", "name": "Pad Mouse Powerplay 2", "pvp": 639900, "tachado": null, "sofa": 619900}, {"sku": "956-000038", "name": "Pad Mouse The Studio Series AZUL", "pvp": 48900, "tachado": null, "sofa": 39900}, {"sku": "956-000035", "name": "Pad Mouse The Studio Series NEGRO", "pvp": 48900, "tachado": null, "sofa": 39900}, {"sku": "956-000037", "name": "Pad Mouse The Studio Series ROSADO", "pvp": 48900, "tachado": null, "sofa": 39900}, {"sku": "941-000242", "name": "Palanca Cambios Secuencial RG Shifter", "pvp": 899900, "tachado": null, "sofa": 819900}, {"sku": "941-000119", "name": "Palanca Driving Force Shifter", "pvp": 299900, "tachado": 279900, "sofa": 199900}, {"sku": "980-001300", "name": "Parlantes G560 LIGHTSYNC", "pvp": 1199900, "tachado": 1099900, "sofa": 999900}, {"sku": "963290-0403", "name": "Simulador de Vuelo Joystick 3D Pro", "pvp": 299900, "tachado": null, "sofa": 239900}, {"sku": "920-008084", "name": "Teclado Gamer Logitech G213", "pvp": 299900, "tachado": null, "sofa": 219900}, {"sku": "920-012143", "name": "Teclado Inalámbrico G PRO X TKL BLANCO", "pvp": 1149900, "tachado": 1029900, "sofa": 899900}, {"sku": "920-012127", "name": "Teclado Inalámbrico G PRO X TKL NEGRO", "pvp": 1149900, "tachado": 1029900, "sofa": 899900}, {"sku": "920-009660", "name": "Teclado Inalámbrico G915 TKL BLANCO", "pvp": 999900, "tachado": null, "sofa": 899900}, {"sku": "920-009495", "name": "Teclado Inalámbrico G915 TKL NEGRO", "pvp": 999900, "tachado": null, "sofa": 899900}, {"sku": "920-012535", "name": "Teclado Inalámbrico Mecánico G515 TKL BLANCO", "pvp": 799900, "tachado": null, "sofa": 679900}, {"sku": null, "name": "Teclado Inalámbrico Mecánico G515 TKL NEGRO", "pvp": 799900, "tachado": null, "sofa": 679900}, {"sku": "920-012869", "name": "Teclado Inalámbrico Mecánico G515 X TKL BLANCO", "pvp": 619900, "tachado": null, "sofa": 589900}, {"sku": "920-012868", "name": "Teclado Inalámbrico Mecánico G515 X TKL NEGRO", "pvp": 619900, "tachado": null, "sofa": 589900}, {"sku": "920-010453", "name": "Teclado Inalámbrico Mecanico G715 Aurora", "pvp": 999900, "tachado": null, "sofa": 879900}, {"sku": "920-011354", "name": "Teclado Inalámbrico Mecánico G815 BLANCO", "pvp": 899900, "tachado": null, "sofa": 799900}, {"sku": "920-008984", "name": "Teclado Inalámbrico Mecánico G815 NEGRO", "pvp": 899900, "tachado": null, "sofa": 799900}, {"sku": "920-012670", "name": "Teclado Inalámbrico Mecánico G915 X NEGRO", "pvp": 1189900, "tachado": null, "sofa": 1069900}, {"sku": "920-012732", "name": "Teclado Inalámbrico Mecánico G915 X TKL BLANCO", "pvp": 1129900, "tachado": 1049900, "sofa": 969900}, {"sku": "920-012715", "name": "Teclado Inalámbrico Mecánico G915 X TKL NEGRO", "pvp": 1129900, "tachado": 1049900, "sofa": 969900}, {"sku": "920-011921", "name": "Teclado Inalámbrico Mecánico PRO X 60 Blanco", "pvp": 1049900, "tachado": 1019900, "sofa": 929900}, {"sku": "920-011902", "name": "Teclado Inalámbrico Mecánico PRO X 60 Negro", "pvp": 1049900, "tachado": 1019900, "sofa": 929900}, {"sku": "920-013131", "name": "Teclado Inalámbrico Mecanico PRO X TKL RAPID NEGRO", "pvp": 959900, "tachado": 839900, "sofa": 769900}, {"sku": "920-010433", "name": "Teclado Mecánico G413 SE", "pvp": 469900, "tachado": null, "sofa": 379900}, {"sku": "920-010442", "name": "Teclado Mecánico G413 SE TKL", "pvp": 439900, "tachado": null, "sofa": 359900}, {"sku": "920-009322", "name": "Teclado Mecánico G513 Carbón", "pvp": 689900, "tachado": null, "sofa": 589900}, {"sku": "920-010413", "name": "Teclado Mecánico G713 Aurora", "pvp": 799900, "tachado": null, "sofa": 689900}, {"sku": "920-009388", "name": "Teclado Mecánico Logitech G PRO", "pvp": 619900, "tachado": 559900, "sofa": 499900}, {"sku": "989-000433", "name": "Ultimate Ears Base de Carga", "pvp": 119900, "tachado": null, "sofa": 99900}, {"sku": "984-001394", "name": "Ultimate Ears Megaboom 3 SUNSET RED", "pvp": 979900, "tachado": null, "sofa": 829900}, {"sku": "984-001393", "name": "Ultimate Ears Megaboom 3 ULTRAVIOLET PURPLE", "pvp": 979900, "tachado": null, "sofa": 829900}, {"sku": "984-001809", "name": "Ultimate Ears Wonderboom 3 HYPER PINK", "pvp": 349900, "tachado": null, "sofa": 299900}, {"sku": "984-001834", "name": "Ultimate Ears Wonderboom 3 LAVENDER", "pvp": 349900, "tachado": 249900, "sofa": 239900}, {"sku": "984-001814", "name": "Ultimate Ears Wonderboom 3 PERFORMANCE BLUE", "pvp": 349900, "tachado": 249900, "sofa": 239900}, {"sku": "941-000111", "name": "Volante G29 PS4 / PC", "pvp": 1399900, "tachado": 1349900, "sofa": 1249900}, {"sku": "941-000122", "name": "Volante G920 Xbox / Pc", "pvp": 1399900, "tachado": 1349900, "sofa": 1249900}, {"sku": "941-000147", "name": "Volante G923 PS4 y PS5 / PC", "pvp": 1799900, "tachado": 1699900, "sofa": 1599900}, {"sku": "941-000156", "name": "Volante G923 Xbox X|s One / Pc", "pvp": 1799900, "tachado": 1699900, "sofa": 1599900}, {"sku": "960-001087", "name": "Cámara Web C922 Pro", "pvp": 439900, "tachado": null, "sofa": 349900}]}, "combos": [{"name": "G512 + REPOSAMUÑECAS", "pvp": 969900, "desc": 58194, "sofa": 899900, "obsequio": "GORRA", "incentivo": null, "pvpAlt": null}, {"name": "TIMON G920 + PALANCA", "pvp": 1299900, "desc": null, "sofa": 1199900, "obsequio": "GORRA", "incentivo": 10000, "pvpAlt": null}, {"name": "TIMON G29 + PALANCA", "pvp": 1299900, "desc": null, "sofa": 1199900, "obsequio": "GORRA", "incentivo": 10000, "pvpAlt": null}, {"name": "TIMON G920 + PALANCA + Soporte SPTG-07", "pvp": 1599900, "desc": null, "sofa": 1499900, "obsequio": "GORRA", "incentivo": 15000, "pvpAlt": null}, {"name": "TIMON G29 + PALANCA + Soporte SPTG-07", "pvp": 1599900, "desc": null, "sofa": 1499900, "obsequio": "GORRA", "incentivo": 15000, "pvpAlt": null}, {"name": "TIMOM G923 + PALANCA", "pvp": 1449900, "desc": null, "sofa": 1349900, "obsequio": "GORRA", "incentivo": 10000, "pvpAlt": null}, {"name": "TIMOM G923 + PALANCA + Soporte SPTG-07", "pvp": 1749900, "desc": null, "sofa": 1599900, "obsequio": "GORRA", "incentivo": 15000, "pvpAlt": null}, {"name": "G203 + G240", "pvp": 159900, "desc": null, "sofa": 119900, "obsequio": "ESFERO", "incentivo": null, "pvpAlt": null}, {"name": "G502 + G240", "pvp": 309900, "desc": null, "sofa": 239900, "obsequio": "ESFERO", "incentivo": null, "pvpAlt": null}, {"name": "Logitech Combo Gamer Prodigy Rgb: Teclado G213 + Mouse G203 + G335 Negra", "pvp": 629900, "desc": null, "sofa": 479900, "obsequio": "LLAVERO", "incentivo": null, "pvpAlt": null}, {"name": "Combo Gamer Logitech G Teclado G213 + Mouse G502 Hero", "pvp": 549900, "desc": null, "sofa": 419900, "obsequio": "LLAVERO", "incentivo": null, "pvpAlt": null}, {"name": "Combo Gamer Logitech G Teclado G213 + Mouse G203", "pvp": 404900, "desc": null, "sofa": 289900, "obsequio": "LLAVERO", "incentivo": null, "pvpAlt": null}, {"name": "Logitech Combo Gamer Prodigy Rgb: Teclado G213 + Mouse G203 + G240", "pvp": 459900, "desc": null, "sofa": 329900, "obsequio": "GORRA", "incentivo": null, "pvpAlt": null}, {"name": "COMBO RS50", "pvp": 4969900, "desc": 4299900, "sofa": 4299900, "obsequio": "GORRA", "incentivo": 25000, "pvpAlt": 4839900}, {"name": "Combo Volante de Carreras Logitech G RS50 + Pedales Modulares RS Pedals", "pvp": 4099900, "desc": 3579900, "sofa": 3579900, "obsequio": "GORRA", "incentivo": null, "pvpAlt": null}]};
+const KEY='buscador-precios-lista';
+const $=s=>document.querySelector(s);
+const norm=s=>(s==null?'':String(s)).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const skuKey=s=>norm(s).replace(/[^a-z0-9]/g,'');
+const money=v=>typeof v==='number'?'$ '+v.toLocaleString('es-CO'):(v||'—');
+const models=name=>[...new Set((String(name).toUpperCase().match(/\b(G\d{2,3}[A-Z]?|RS\d+|A\d0X?|F\d{3}|Z\d{3})\b/g)||[]))];
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+/* ---------- Lectura del Excel ---------- */
+function num(v){
+  if(typeof v==='number')return Math.round(v);
+  const s=String(v??'').trim();if(!s)return null;
+  if(/^\$?\s*[\d.,]+$/.test(s)&&/\d/.test(s))return parseInt(s.replace(/[^\d]/g,''),10);
+  return s;
+}
+const txt=v=>String(v??'').replace(/\s+/g,' ').trim();
+const isCode=s=>/^[\d][\d-]{4,}$/.test(txt(s));
+function parseSheet(name,rows){
+  const h=rows.findIndex(r=>r.some(c=>norm(c)==='sku')&&r.some(c=>norm(c).startsWith('descrip')));
+  if(h<0)return null;
+  const H=rows[h].map(norm),find=f=>H.findIndex(f);
+  const col={sku:find(c=>c==='sku'),name:find(c=>c.startsWith('descrip')),inv:find(c=>c.startsWith('invent')),
+    pvp:find(c=>c.includes('pvp')),desc:find(c=>c.startsWith('descuento')),sofa:find(c=>c.startsWith('sofa')),
+    obsequio:find(c=>c.startsWith('obsequio')),incentivo:find(c=>c.startsWith('incentivo')),tachado:find(c=>c.startsWith('tachado'))};
+  const g=(r,k)=>col[k]>=0?r[col[k]]:'';
+  const products=[],combos=[];let comboMode=false;
+  for(const r of rows.slice(h+1)){
+    if(!r.some(c=>txt(c)))continue;
+    const first=norm(r[0]);
+    if(first.startsWith('combos')){comboMode=true;continue}
+    if(first==='sku')continue;
+    if(comboMode||first==='combo'){
+      const nm=first==='combo'?txt(g(r,'name')):txt(r[0]);if(!nm)continue;
+      const alt=col.inv>=0?num(r[col.inv]):null;
+      combos.push({name:nm,pvp:num(g(r,'pvp')),pvpAlt:typeof alt==='number'?alt:null,desc:num(g(r,'desc')),sofa:num(g(r,'sofa')),obsequio:txt(g(r,'obsequio'))||null,incentivo:num(g(r,'incentivo'))});
+    }else{
+      let sku=txt(g(r,'sku')),nm=txt(g(r,'name'));
+      if(!isCode(sku)&&isCode(nm)){[sku,nm]=[nm,sku]}
+      if(!nm)continue;
+      products.push({sku:sku||null,name:nm,inv:col.inv>=0?num(g(r,'inv')):null,pvp:num(g(r,'pvp')),desc:num(g(r,'desc')),
+        sofa:num(g(r,'sofa')),tachado:num(g(r,'tachado')),obsequio:txt(g(r,'obsequio'))||null,incentivo:num(g(r,'incentivo'))});
+    }
+  }
+  return products.length?{label:name.trim(),rows:products,combos}:null;
+}
+function parseWorkbook(wb,fileName){
+  const parsed=wb.SheetNames.map(n=>{
+    const ws=wb.Sheets[n];
+    for(const k in ws){if(k[0]!=='!'&&ws[k]&&ws[k].t==='e')ws[k]={t:'s',v:ws[k].w||'#ERROR'}}
+    return parseSheet(n,XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''}));
+  }).filter(Boolean);
+  if(!parsed.length)throw new Error('No encontré ninguna hoja con las columnas SKU y DESCRIPCIÓN. Revisa que el encabezado tenga esos nombres.');
+  const yr=s=>{const m=s.label.match(/(19|20)\d\d/);return m?+m[0]:null};
+  if(parsed.every(yr))parsed.sort((a,b)=>yr(b)-yr(a));
+  const cur=parsed[0],prev=parsed[1]||null;
+  return {fileName,loadedAt:new Date().toISOString(),cur:{label:cur.label,rows:cur.rows},prev:prev?{label:prev.label,rows:prev.rows}:null,combos:cur.combos};
+}
+
+/* ---------- Estado ---------- */
+let S=SEED,items=[],filter='all',open=null;
+try{const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved&&saved.cur)S=saved}catch(e){}
+function rebuild(){
+  const prevRows=S.prev?S.prev.rows:[];
+  const bySku={},byName={};prevRows.forEach(p=>{if(p.sku)bySku[skuKey(p.sku)]=p;byName[norm(p.name)]=p});
+  const curSku=new Set(S.cur.rows.map(p=>skuKey(p.sku||''))),curName=new Set(S.cur.rows.map(p=>norm(p.name)));
+  items=[];
+  S.cur.rows.forEach((p,i)=>items.push({id:'a'+i,type:'cur',...p,old:(p.sku&&bySku[skuKey(p.sku)])||byName[norm(p.name)]||null}));
+  (S.combos||[]).forEach((c,i)=>items.push({id:'c'+i,type:'combo',sku:null,...c}));
+  prevRows.forEach((p,i)=>{if(!(p.sku&&curSku.has(skuKey(p.sku)))&&!curName.has(norm(p.name)))items.push({id:'o'+i,type:'old',...p,inv:null,desc:null,obsequio:null,incentivo:null})});
+  items.forEach(it=>{it._n=norm(it.name);it._s=skuKey(it.sku||'');it._m=models(it.name)});
+  const cl=S.cur.label,pl=S.prev&&S.prev.label;
+  $('#sub').textContent=`Lista ${cl}${pl?' · comparativo '+pl:''}`;
+  $('#chipCur').textContent='Productos '+cl;
+  $('#chipOld').hidden=!items.some(i=>i.type==='old');$('#chipOld').textContent='Solo en lista '+(pl||'anterior');
+  showStatus();
+}
+function showStatus(extra){
+  const n=S.cur.rows.length,c=(S.combos||[]).length,inc=items.filter(i=>hasInc(i)).length;
+  const when=S.loadedAt?new Date(S.loadedAt).toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'}):'lista original';
+  $('#status').innerHTML=(extra||'')+`<div>Lista en uso: <strong>${esc(S.fileName||'—')}</strong> (${when}) · ${n} productos, ${c} combos, ${inc} con incentivo.</div>`;
+  $('#reset').hidden=S===SEED;
+}
+const hasInc=it=>typeof it.incentivo==='number'&&it.incentivo>0;
+
+/* ---------- Búsqueda ---------- */
+function score(it,q){
+  if(!q)return 1;
+  const qs=skuKey(q);
+  if(qs&&it._s&&it._s===qs)return 100;
+  if(qs.length>=3&&it._s&&it._s.includes(qs)&&/\d/.test(q))return 50;
+  const toks=norm(q).split(' ');
+  if(toks.every(t=>it._n.includes(t)||(it._s&&it._s.includes(t.replace(/[^a-z0-9]/g,'')))))
+    return 10+(it._n.startsWith(toks[0])?2:0)+(toks.some(t=>it._m.map(m=>m.toLowerCase()).includes(t))?5:0);
+  return 0;
+}
+function hl(text,q){
+  if(!q)return esc(text);
+  const chars=[...String(text)],n=chars.map(ch=>ch.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().charAt(0)||ch).join('');
+  const marks=new Array(chars.length).fill(false);
+  norm(q).split(' ').filter(t=>t.length>1).forEach(t=>{let i=n.indexOf(t);while(i>=0){for(let k=i;k<i+t.length;k++)marks[k]=true;i=n.indexOf(t,i+1)}});
+  let out='',on=false;chars.forEach((ch,k)=>{if(marks[k]&&!on){out+='<mark>';on=true}if(!marks[k]&&on){out+='</mark>';on=false}out+=esc(ch)});
+  return on?out+'</mark>':out;
+}
+function stockPill(it){
+  if(it.type==='combo')return '<span class="pill p-acc">Combo</span>';
+  if(it.type==='old')return `<span class="pill p-bad">No está en lista ${esc(S.cur.label)}</span>`;
+  const n=it.inv;if(typeof n!=='number')return '';
+  const cls=n===0?'p-bad':n<=5?'p-warn':'p-ok';return `<span class="pill ${cls}">${n} und</span>`;
+}
+const incPill=it=>hasInc(it)?`<span class="pill p-inc">Incentivo ${money(it.incentivo)}</span>`:'';
+const mainPrice=it=>it.sofa!=null&&it.sofa!==''?it.sofa:it.pvp;
+function render(){
+  const q=$('#q').value.trim();$('#clr').hidden=!q;
+  let res=items.filter(it=>filter==='all'||(filter==='inc'?hasInc(it):it.type===filter)).map(it=>[it,score(it,q)]).filter(x=>x[1]>0);
+  const tp={cur:2,combo:1,old:0};
+  if(q)res.sort((a,b)=>b[1]-a[1]||tp[b[0].type]-tp[a[0].type]);
+  else if(filter==='inc')res.sort((a,b)=>b[0].incentivo-a[0].incentivo);
+  if(q&&res.length&&res[0][1]===100&&open==null)open=res[0][0].id;
+  const extra=filter==='inc'?' con incentivo':'';
+  $('#count').textContent=res.length?`${res.length} resultado${res.length>1?'s':''}${extra}${q?` para “${q}”`:''}`:'';
+  $('#list').innerHTML=res.length?res.map(([it])=>card(it,q)).join(''):
+    `<div class="empty">No hay nada${extra} con “${esc(q)}”.<br>Prueba solo el modelo (ej. <b>G305</b>) o los últimos dígitos del SKU.</div>`;
+}
+function card(it,q){
+  const mp=mainPrice(it);
+  const strike=typeof it.pvp==='number'&&typeof mp==='number'&&it.pvp!==mp?`<s>PVP ${money(it.pvp)}</s>`:'';
+  return `<div class="item"><button class="row" data-id="${it.id}" aria-expanded="${open===it.id}">
+    <div class="name">${hl(it.name,q)}</div>
+    <div class="price"><b>${money(mp)}</b>${strike}</div>
+    <div class="meta">${it.sku?`<span class="sku">${hl(it.sku,q)}</span>`:''}${stockPill(it)}${incPill(it)}${it.obsequio?`<span>Obsequio: ${esc(it.obsequio)}</span>`:''}</div>
+  </button>${open===it.id?detail(it):''}</div>`;
+}
+const kv=(l,v,c)=>`<div class="kv${c?' '+c:''}"><span>${l}</span><strong>${v}</strong></div>`;
+function pct(a,b){if(typeof a!=='number'||typeof b!=='number'||!b)return '';const d=(a-b)/b*100;if(Math.abs(d)<.05)return '<span>=</span>';return `<span class="${d>0?'up':'down'}">${d>0?'+':''}${d.toFixed(1)}%</span>`}
+function detail(it){
+  const cl=esc(S.cur.label),pl=S.prev?esc(S.prev.label):'';
+  let h='<div class="detail">';
+  if(it.type==='old'){
+    h+=`<div class="grid">${kv('SOFA '+pl,money(it.sofa),'hl')}${kv('PVP Logi Store '+pl,money(it.pvp))}${kv('Tachado '+pl,money(it.tachado))}</div>
+    <p class="note">Este producto aparece solo en la lista ${pl}. No tiene precio ni inventario en la lista ${cl}.</p>`;
+  }else{
+    const pvpAlt=it.type==='combo'&&typeof it.pvpAlt==='number'?kv('PVP alterno',money(it.pvpAlt)):'';
+    const neto=typeof it.pvp==='number'&&typeof it.desc==='number'?kv('PVP − descuento',money(it.pvp-it.desc)):'';
+    h+=`<div class="grid">${kv('SOFA',money(it.sofa),'hl')}${kv('PVP Logi Store',money(it.pvp))}${pvpAlt}${kv('Descuento',money(it.desc))}${neto}
+      ${it.type==='cur'?kv('Inventario',typeof it.inv==='number'?it.inv+' und':'—'):''}${kv('Obsequio',esc(it.obsequio||'—'))}${kv('Incentivo',hasInc(it)?money(it.incentivo):'Sin incentivo',hasInc(it)?'inc':'')}</div>`;
+    if(it.sku)h+=`<p class="note">SKU <span class="sku">${esc(it.sku)}</span> · <button class="copy" data-copy="${esc(it.sku)}">Copiar SKU</button></p>`;
+    if(it.type==='cur'&&S.prev){
+      if(it.old){
+        const o=it.old;
+        h+=`<div><h3>Comparativo con lista ${pl}</h3><div class="tw"><table><tr><th>Precio</th><th>${pl}</th><th>${cl}</th><th>Cambio</th></tr>
+        <tr><td>SOFA</td><td>${money(o.sofa)}</td><td>${money(it.sofa)}</td><td>${pct(it.sofa,o.sofa)}</td></tr>
+        <tr><td>PVP Logi Store</td><td>${money(o.pvp)}</td><td>${money(it.pvp)}</td><td>${pct(it.pvp,o.pvp)}</td></tr>
+        ${o.tachado!=null?`<tr><td>Tachado</td><td>${money(o.tachado)}</td><td>—</td><td></td></tr>`:''}</table></div></div>`;
+      }else h+=`<p class="note">Sin registro en la lista ${pl} (producto nuevo).</p>`;
+    }
+  }
+  const ms=it._m;
+  if(ms.length){
+    const re=m=>new RegExp('\\b'+m+'\\b','i');
+    const cmb=it.type==='combo'?[]:items.filter(x=>x.type==='combo'&&ms.some(m=>re(m).test(x.name)));
+    if(cmb.length)h+=`<div><h3>Combos que lo incluyen</h3>${cmb.map(c=>`<div class="combo"><div class="n">${esc(c.name)}</div><div class="v">${money(c.sofa)}</div><div class="s">PVP ${money(c.pvp)}${c.obsequio?' · Obsequio '+esc(c.obsequio):''}${hasInc(c)?' · Incentivo '+money(c.incentivo):''}</div></div>`).join('')}</div>`;
+    const rel=items.filter(x=>x.id!==it.id&&x.type!=='combo'&&x._m.some(m=>ms.includes(m)));
+    if(rel.length)h+=`<div><h3>${it.type==='combo'?'Productos del combo':'Otras versiones y colores'}</h3><div class="rel">${rel.map(r=>`<button data-go="${r.id}">${esc(r.name)}<em>${money(mainPrice(r))}${typeof r.inv==='number'?' · '+r.inv+' und':''}${hasInc(r)?' · Inc. '+money(r.incentivo):''}${r.type==='old'?' · '+pl:''}</em></button>`).join('')}</div></div>`;
+  }
+  return h+'</div>';
+}
+
+/* ---------- Carga de archivo ---------- */
+function loadFile(f){
+  if(!f)return;
+  if(typeof XLSX==='undefined'){showStatus('<div class="msg err">No se pudo cargar el lector de Excel. Revisa la conexión y recarga la página.</div>');return}
+  showStatus(`<div class="msg">Leyendo ${esc(f.name)}…</div>`);
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ns=parseWorkbook(wb,f.name);
+      S=ns;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(err){}
+      open=null;rebuild();render();
+      showStatus(`<div class="msg ok">Listo. Se cargó la hoja “${esc(ns.cur.label)}”${ns.prev?` y se compara con “${esc(ns.prev.label)}”`:''}.</div>`);
+    }catch(err){showStatus(`<div class="msg err">${esc(err.message||'No se pudo leer el archivo.')}</div>`)}
+    $('#file').value='';
+  };
+  r.onerror=()=>showStatus('<div class="msg err">No se pudo abrir el archivo. Intenta de nuevo.</div>');
+  r.readAsArrayBuffer(f);
+}
+$('#file').addEventListener('change',e=>loadFile(e.target.files[0]));
+const drop=$('#drop');
+['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
+$('#toggleUp').addEventListener('click',()=>{const up=$('#up');up.hidden=!up.hidden;$('#toggleUp').setAttribute('aria-expanded',!up.hidden)});
+$('#reset').addEventListener('click',()=>{S=SEED;try{localStorage.removeItem(KEY)}catch(e){}open=null;rebuild();render();showStatus('<div class="msg ok">Se restauró la lista original.</div>')});
+
+/* ---------- Eventos ---------- */
+$('#q').addEventListener('input',()=>{open=null;render()});
+$('#clr').addEventListener('click',()=>{$('#q').value='';open=null;render();$('#q').focus()});
+$('#chips').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;filter=b.dataset.f;document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===b));open=null;render()});
+$('#list').addEventListener('click',e=>{
+  const cp=e.target.closest('[data-copy]');
+  if(cp){const t=cp.dataset.copy;navigator.clipboard?.writeText(t).then(()=>{cp.textContent='Copiado'},()=>{cp.textContent=t});return}
+  const go=e.target.closest('[data-go]');
+  if(go){const it=items.find(x=>x.id===go.dataset.go);$('#q').value=it.sku||it.name;filter='all';document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.f==='all'));open=it.id;render();window.scrollTo({top:0});return}
+  const r=e.target.closest('.row');if(r){open=open===r.dataset.id?null:r.dataset.id;render()}
+});
+rebuild();render();
+</script>
+
+</body>
+</html>
