@@ -152,7 +152,7 @@ body.noscroll{overflow:hidden}
 #cmpbody{min-width:0}.tw{overflow-x:auto}
 .verd{display:grid;gap:10px;grid-template-columns:minmax(0,1fr);min-width:0}.vwins{display:flex;flex-wrap:wrap;gap:4px}.vcard{min-width:0}.vfor{margin:0;overflow-wrap:anywhere}
 .cdiff{margin:0;font-size:15px;padding:10px 12px;background:var(--accent-soft);border-radius:10px;color:var(--fg)}
-.vcards{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:8px}
+.vcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
 @media (max-width:560px){.vcards{grid-template-columns:1fr}}
 .vcard{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:6px;align-content:start}
 .vcard img{width:72px;height:72px;object-fit:contain;background:#fff;border-radius:10px;border:1px solid var(--line)}
@@ -597,7 +597,7 @@ let CMP=[];
 const byId=id=>items.find(x=>x.id===id);
 function toggleCmp(id){
   if(CMP.includes(id))CMP=CMP.filter(x=>x!==id);
-  else{if(CMP.length>=3){CMP.shift()}CMP.push(id)}
+  else{if(CMP.length>=5){CMP.shift()}CMP.push(id)}
   renderCmp();render();
   if(CMP.includes(id))openCmp(CMP.length<2);
 }
@@ -643,7 +643,7 @@ function renderCmp(){
   let h='';
   // sugerencias
   const sug=cmpSuggest(its);
-  if(its.length<3&&sug.length)h+=`<div class="sug"><span class="note"><strong>${its.length===1?'Compáralo con':'Agregar otro similar'}:</strong></span><div class="sugl">${sug.map(s=>{const th=thumb(s,80);return `<button class="sugc" data-add="${s.id}">${th?`<img src="${esc(th)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${esc((featFor(s)||{}).t||s.name)}</span><em>${money(mainPrice(s))}</em></button>`}).join('')}</div></div>`;
+  if(its.length<5&&sug.length)h+=`<div class="sug"><span class="note"><strong>${its.length===1?'Compáralo con':'Agregar otro similar'}:</strong></span><div class="sugl">${sug.map(s=>{const th=thumb(s,80);return `<button class="sugc" data-add="${s.id}">${th?`<img src="${esc(th)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${esc((featFor(s)||{}).t||s.name)}</span><em>${money(mainPrice(s))}</em></button>`}).join('')}</div></div>`;
   if(!its.length){$('#cmpbody').innerHTML='<div class="cempty"><strong>Elige el primer producto</strong><p class="note">Búscalo arriba por nombre o SKU. Luego te sugerimos productos parecidos para compararlo.</p></div>';pickRender();return}
   // valores y ganadores
   const rows=CMP_SPECS.map(([lab,get,best,grp])=>{const vals=its.map((it,k)=>get(it,fx[k]));
@@ -680,11 +680,11 @@ function renderCmp(){
   const hidden=all.length-shown.length;
   if(its.length>1)h+=`<div class="ctools"><label class="tog"><input type="checkbox" id="cmpdiff" ${CMP_DIFF?'checked':''}> Mostrar solo diferencias</label>${CMP_DIFF&&hidden?`<span class="note">${hidden} fila${hidden>1?'s':''} iguales ocultas</span>`:''}</div>`;
   let g='';
-  h+=`<div class="tw"><table class="ctab"><thead><tr><th></th>${its.map(it=>`<td><div class="chead">${thumb(it,160)?`<img class="cimg" src="${esc(thumb(it,160))}" alt="" loading="lazy" onerror="this.remove()">`:''}<strong>${esc(it.name)}</strong>${its.length===1?`<button class="x" data-rm="${it.id}" aria-label="Quitar">×</button>`:''}</div>${it.sku?`<span class="sku sel">${esc(it.sku)}</span>`:''}</td>`).join('')}</tr></thead><tbody>`;
+  h+=`<div class="tw"><table class="ctab"><thead><tr><th></th>${its.map(it=>`<td><div class="chead">${its.length===1&&thumb(it,160)?`<img class="cimg" src="${esc(thumb(it,160))}" alt="" loading="lazy" onerror="this.remove()">`:''}<strong>${esc(it.name)}</strong>${its.length===1?`<button class="x" data-rm="${it.id}" aria-label="Quitar">×</button>`:''}</div>${it.sku?`<span class="sku sel">${esc(it.sku)}</span>`:''}</td>`).join('')}</tr></thead><tbody>`;
   shown.forEach(r=>{if(r.grp!==g){g=r.grp;h+=`<tr class="grp"><th colspan="${its.length+1}">${g}</th></tr>`}
     h+=`<tr><th scope="row">${esc(r.lab)}</th>${r.vals.map((v,i)=>`<td class="${r.win.has(i)?'best':''}">${v.html||esc(v.t||'—')}${r.win.has(i)?' <span class="bmark">✓</span>':''}${v.e?`<small class="tipx">${esc(v.e)}</small>`:''}</td>`).join('')}</tr>`});
   h+='</tbody></table></div>';
-  if(its.length<3)h+=`<p class="note">${its.length<2?'Agrega otro producto arriba o toca una sugerencia.':'Puedes agregar un producto más (máximo 3).'}</p>`;
+  if(its.length<5)h+=`<p class="note">${its.length<2?'Agrega otro producto arriba o toca una sugerencia.':`Puedes agregar ${5-its.length===1?'un producto más':(5-its.length)+' productos más'} (máximo 5).`}</p>`;
   $('#cmpbody').innerHTML=h;
   pickRender();
 }
@@ -696,7 +696,7 @@ function pickRender(){
 $('#cmp').addEventListener('change',e=>{if(e.target.id==='cmpdiff'){CMP_DIFF=e.target.checked;renderCmp()}});
 $('#cmpq').addEventListener('input',pickRender);
 $('#cmp').addEventListener('click',e=>{
-  const a=e.target.closest('[data-add]');if(a){if(CMP.length>=3)CMP.shift();CMP.push(a.dataset.add);$('#cmpq').value='';renderCmp();render();return}
+  const a=e.target.closest('[data-add]');if(a){if(CMP.length>=5)CMP.shift();CMP.push(a.dataset.add);$('#cmpq').value='';renderCmp();render();return}
   const r=e.target.closest('[data-rm]');if(r){CMP=CMP.filter(x=>x!==r.dataset.rm);renderCmp();render();return}
 });
 $('#cmpclose').addEventListener('click',()=>{closeCmp();renderCmp()});
