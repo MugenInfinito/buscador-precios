@@ -257,8 +257,8 @@ body.mode-live header .top+.upd,body.mode-live header .search,body.mode-live hea
 </div><div class="cmpbar" id="cmpbar" hidden><span id="cmpcount"></span><div class="btnrow"><button class="btn ghost" id="cmpreset">Limpiar</button><button class="btn" id="cmpopen">Ver comparación</button></div></div>
 <section class="cmp" id="cmp" hidden aria-label="Comparar productos"><div class="cmp-in">
 <div class="cmp-top"><h2>Comparar productos</h2><div class="btnrow"><button class="btn" id="cmpclear">Limpiar</button><button class="btn primary" id="cmpclose">Cerrar</button></div></div>
-<div id="cmpbody"></div>
 <div class="pickbox"><label for="cmpq" class="note"><strong>Agregar producto a la comparación</strong></label><input id="cmpq" type="search" placeholder="Busca por nombre o SKU" autocomplete="off"><div id="cmppick"></div></div>
+<div id="cmpbody"></div>
 </div></section>
 <div class="sheet" id="sheet" hidden><div class="sheet-bg" data-close></div>
 <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="shname">
@@ -599,7 +599,7 @@ function renderCmp(){
     h+=row('En qué se diferencia',(it,f)=>f?esc(f.d):'—');
     h+='</tbody></table></div>';
   }
-  if(its.length<3)h+=`<p class="note">${its.length<2?'Busca abajo el producto con el que lo quieres comparar.':'Puedes agregar un producto más (máximo 3).'}</p>`;
+  if(its.length<3)h+=`<p class="note">${its.length<2?'Busca arriba el producto con el que lo quieres comparar.':'Puedes agregar un producto más (máximo 3).'}</p>`;
   $('#cmpbody').innerHTML=h;
   pickRender();
 }
